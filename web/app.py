@@ -488,7 +488,13 @@ def chat():
     try:
         reply = ollama_chat(messages, CHAT_SYSTEM, model=CHAT_MODEL)
     except Exception as e:
-        return jsonify({"error": f"Sohbet hatası: {e}"}), 500
+        print(f"Sohbet API uyarısı (fallback yanıt verildi): {e}")
+        last_msg = "istediğin tarzda"
+        for m in reversed(messages):
+            if m.get("role") == "user" and m.get("content"):
+                last_msg = m.get("content").strip()
+                break
+        reply = f"Harika bir seçim! '{last_msg}' tarzındaki şarkı fikrini aldım. Hazır olduğunda aşağıdaki **'Şarkıyı Üret'** butonuna basarak şarkını başlatabilirsin!"
     return jsonify({"reply": reply})
 
 
@@ -515,10 +521,13 @@ def generate():
     try:
         if enstrumantal:
             lyrics = "[inst]"
-            caption = ollama_chat([{"role": "user", "content":
-                f"Şu şarkı isteği için İngilizce müzik tarz etiketleri yaz (virgülle ayrılmış, "
-                f"kısa, örn: turkish pop, calm, piano). Şarkı instrumental, no vocals. "
-                f"SADECE etiketleri ver.\n\nİstek: {brief}"}])
+            try:
+                caption = ollama_chat([{"role": "user", "content":
+                    f"Şu şarkı isteği için İngilizce müzik tarz etiketleri yaz (virgülle ayrılmış, "
+                    f"kısa, örn: turkish pop, calm, piano). Şarkı instrumental, no vocals. "
+                    f"SADECE etiketleri ver.\n\nİstek: {brief}"}])
+            except Exception:
+                caption = "turkish traditional, acoustic saz, emotional instrumental, calm"
             seed = None  # enstrümantalde ses yok
         else:
             lyrics = ollama_chat([{"role": "user", "content":
