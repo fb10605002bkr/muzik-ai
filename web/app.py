@@ -559,10 +559,6 @@ def generate_start():
         return jsonify({"error": f"Söz üretimi hatası: {e}"}), 500
 
     try:
-        ollama_yer_ac()
-        if not acestep_servis_hazir_ol():
-            return jsonify({"error": "Şarkı servisi başlatılıyor, birkaç saniye sonra tekrar dene."}), 503
-        acestep_base_yukle()
         task_id = acestep_uret_baslat(caption, lyrics, duration, enstrumantal, seed=seed)
     except Exception as e:
         return jsonify({"error": f"Üretim servisi hatası: {e}"}), 500
