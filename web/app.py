@@ -32,12 +32,13 @@ def _sayfa_onbellekleme(resp):
     return resp
 
 # ---- Ayarlar ----
-OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
-CHAT_MODEL = "gemma2:9b"      # sohbet — kullanıcının okuduğu, iyi Türkçe şart
-GEN_MODEL = "qwen2.5:3b"      # boru hattı iç metin (söz/tarz/görsel tarifi) — hızlı
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434/api/chat")
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", OLLAMA_URL.rsplit("/api/", 1)[0] if "/api/" in OLLAMA_URL else "http://127.0.0.1:11434")
+CHAT_MODEL = os.environ.get("CHAT_MODEL", "gemma2:9b")      # sohbet — kullanıcının okuduğu, iyi Türkçe şart
+GEN_MODEL = os.environ.get("GEN_MODEL", "qwen2.5:3b")      # boru hattı iç metin (söz/tarz/görsel tarifi) — hızlı
 ACESTEP_DIR = r"C:\Users\FiratBakir\muzik-ai\ACE-Step-1.5"
 # Sıcak servis (warm API): model BİR KEZ yüklenir, her şarkıda soğuk başlatma YOK.
-ACESTEP_API = "http://127.0.0.1:8001"
+ACESTEP_API = os.environ.get("ACESTEP_API", "http://127.0.0.1:8001").rstrip("/")
 ACESTEP_MODEL = "acestep-v15-base"     # kalite modeli (kullanıcı seçti)
 API_AUDIO_DIR = os.path.join(ACESTEP_DIR, ".cache", "acestep", "tmp", "api_audio")
 INFERENCE_STEPS = 40                    # base kalite (kullanıcı seçti; enstrüman netliği için)
@@ -173,7 +174,7 @@ def ollama_bosalt(model=None):
     for m in ([model] if model else [CHAT_MODEL, GEN_MODEL]):
         try:
             payload = json.dumps({"model": m, "keep_alive": 0}).encode("utf-8")
-            req = urllib.request.Request("http://127.0.0.1:11434/api/generate",
+            req = urllib.request.Request(f"{OLLAMA_BASE_URL}/api/generate",
                                          data=payload, headers={"Content-Type": "application/json"})
             urllib.request.urlopen(req, timeout=30).read()
         except Exception:
