@@ -286,11 +286,8 @@ def acestep_base_yukle():
     _base_hazir = True
 
 
-def acestep_uret(caption, lyrics, duration, enstrumantal, seed=None, timeout=600):
-    """
-    Sıcak servise üretim işi gönderir, /query_result ile sorgular
-    ve üretilen ses dosyasını API üzerinden (tünel destekli) indirir.
-    """
+def acestep_uret_baslat(caption, lyrics, duration, enstrumantal, seed=None):
+    """Sıcak servise üretim işi gönderir ve derhal task_id döndürür (1 saniyenin altında)."""
     os.makedirs(API_AUDIO_DIR, exist_ok=True)
     payload = {
         "caption": caption, "lyrics": lyrics,
@@ -308,47 +305,68 @@ def acestep_uret(caption, lyrics, duration, enstrumantal, seed=None, timeout=600
         payload["use_random_seed"] = True
 
     try:
-        res = _api_post("/release_task", payload, timeout=60)
+        res = _api_post("/release_task", payload, timeout=30)
     except Exception as e:
         print("release_task hatasi:", e)
         return None
 
-    task_id = None
     if isinstance(res, dict) and "data" in res:
         d = res["data"]
         if isinstance(d, dict):
-            task_id = d.get("task_id")
+            return d.get("task_id")
         elif isinstance(d, str):
-            task_id = d
+            return d
 
+    return None
+
+
+def acestep_uret_sorgula(task_id):
+    """
+    Üretim işinin durumunu /query_result üzerinden sorgular.
+    Tamamlandıysa (status == 1) ses dosyasını indirir ve dosya adını döndürür.
+    """
+    try:
+        q_res = _api_post("/query_result", {"task_id_list": [task_id]}, timeout=15)
+        if q_res and isinstance(q_res, dict) and "data" in q_res and isinstance(q_res["data"], list) and len(q_res["data"]) > 0:
+            titem = q_res["data"][0]
+            status = titem.get("status")
+            if status == 1:
+                raw_res = titem.get("result")
+                res_list = json.loads(raw_res) if isinstance(raw_res, str) else raw_res
+                if res_list and len(res_list) > 0:
+                    file_path = res_list[0].get("file", "")
+                    fname = f"{uuid.uuid4().hex}.wav"
+                    out_path = os.path.join(API_AUDIO_DIR, fname)
+                    dl_url = ACESTEP_API + file_path if file_path.startswith("/") else file_path
+                    req = urllib.request.Request(dl_url, headers={"Bypass-Tunnel-Reminder": "true", "User-Agent": "Mozilla/5.0"})
+                    with urllib.request.urlopen(req, timeout=60) as r, open(out_path, "wb") as f:
+                        f.write(r.read())
+                    return {"status": "completed", "dosya": fname}
+            elif status == 2:
+                return {"status": "failed", "error": "İşlem başarısız"}
+    except Exception as e:
+        print("query_result poll hatasi:", e)
+    
+    return {"status": "processing"}
+
+
+def acestep_uret(caption, lyrics, duration, enstrumantal, seed=None, timeout=600):
+    """
+    Sıcak servise üretim işi gönderir, /query_result ile sorgular
+    ve üretilen ses dosyasını API üzerinden (tünel destekli) indirir.
+    """
+    task_id = acestep_uret_baslat(caption, lyrics, duration, enstrumantal, seed=seed)
     if not task_id:
-        print("Task ID elde edilemedi:", res)
         return None
 
     t0 = time.time()
     while time.time() - t0 < timeout:
         time.sleep(3)
-        try:
-            q_res = _api_post("/query_result", {"task_id_list": [task_id]}, timeout=15)
-            if q_res and isinstance(q_res, dict) and "data" in q_res and isinstance(q_res["data"], list) and len(q_res["data"]) > 0:
-                titem = q_res["data"][0]
-                status = titem.get("status")
-                if status == 1:
-                    raw_res = titem.get("result")
-                    res_list = json.loads(raw_res) if isinstance(raw_res, str) else raw_res
-                    if res_list and len(res_list) > 0:
-                        file_path = res_list[0].get("file", "")
-                        fname = f"{uuid.uuid4().hex}.wav"
-                        out_path = os.path.join(API_AUDIO_DIR, fname)
-                        dl_url = ACESTEP_API + file_path if file_path.startswith("/") else file_path
-                        req = urllib.request.Request(dl_url, headers={"Bypass-Tunnel-Reminder": "true", "User-Agent": "Mozilla/5.0"})
-                        with urllib.request.urlopen(req, timeout=60) as r, open(out_path, "wb") as f:
-                            f.write(r.read())
-                        return fname
-                elif status == 2:
-                    return None
-        except Exception as e:
-            print("query_result poll hatasi:", e)
+        res = acestep_uret_sorgula(task_id)
+        if res.get("status") == "completed":
+            return res.get("dosya")
+        elif res.get("status") == "failed":
+            return None
 
     return None
 
@@ -496,6 +514,89 @@ def chat():
                 break
         reply = f"Harika bir seçim! '{last_msg}' tarzındaki şarkı fikrini aldım. Hazır olduğunda aşağıdaki **'Şarkıyı Üret'** butonuna basarak şarkını başlatabilirsin!"
     return jsonify({"reply": reply})
+
+
+@app.route("/api/generate-start", methods=["POST"])
+def generate_start():
+    data = request.get_json(silent=True, force=True) or {}
+    brief = (data.get("brief") or "").strip()
+    if not brief:
+        return jsonify({"error": "Şarkı tarifi boş"}), 400
+    user_id = (data.get("user_id") or "anon").strip() or "anon"
+    ses = kullanici_sesi(user_id)
+
+    if ODEME_AKTIF and kredi_getir(user_id) < SARKI_MALIYET:
+        return jsonify({"error": "Yetersiz kredi. Şarkı üretmek için kredi al.",
+                        "need_credits": True, "credits": kredi_getir(user_id)}), 402
+
+    enstrumantal = _enstrumantal_mi(brief)
+    duration = _sure_ayikla(brief)
+
+    ollama_bosalt(CHAT_MODEL)
+    try:
+        if enstrumantal:
+            lyrics = "[inst]"
+            try:
+                caption = ollama_chat([{"role": "user", "content":
+                    f"Şu şarkı isteği için İngilizce müzik tarz etiketleri yaz (virgülle ayrılmış, "
+                    f"kısa, örn: turkish pop, calm, piano). Şarkı instrumental, no vocals. "
+                    f"SADECE etiketleri ver.\n\nİstek: {brief}"}])
+            except Exception:
+                caption = "turkish traditional, acoustic saz, emotional instrumental, calm"
+            seed = None
+        else:
+            lyrics = ollama_chat([{"role": "user", "content":
+                f"Şu isteğe uygun bir Türkçe şarkı sözü yaz. Yapı: [verse] ile 1-2 kıta, "
+                f"[chorus] ile 1 nakarat. SADECE sözü ver, açıklama yapma.\n\nİstek: {brief}"}])
+            song_tags = ollama_chat([{"role": "user", "content":
+                f"Şu şarkı isteği için İngilizce müzik tarz etiketleri yaz (virgülle ayrılmış, "
+                f"kısa, örn: turkish pop, calm, piano). Sadece TÜR/RUH HALİ/ENSTRÜMAN yaz; "
+                f"vokal cinsiyeti (male/female) YAZMA. SADECE etiketleri ver.\n\nİstek: {brief}"}])
+            caption = f"{song_tags}, {ses['vocal_style']}"
+            seed = ses["seed"]
+    except Exception as e:
+        return jsonify({"error": f"Söz üretimi hatası: {e}"}), 500
+
+    try:
+        ollama_yer_ac()
+        if not acestep_servis_hazir_ol():
+            return jsonify({"error": "Şarkı servisi başlatılıyor, birkaç saniye sonra tekrar dene."}), 503
+        acestep_base_yukle()
+        task_id = acestep_uret_baslat(caption, lyrics, duration, enstrumantal, seed=seed)
+    except Exception as e:
+        return jsonify({"error": f"Üretim servisi hatası: {e}"}), 500
+
+    if not task_id:
+        return jsonify({"error": "Şarkı görevi başlatılamadı. Servis açık mı?"}), 500
+
+    kalan = kredi_dus(user_id, SARKI_MALIYET) if ODEME_AKTIF else None
+
+    return jsonify({
+        "task_id": task_id,
+        "lyrics": None if enstrumantal else lyrics,
+        "caption": caption,
+        "instrumental": enstrumantal,
+        "duration": duration,
+        "voice": None if enstrumantal else {"vocal_style": ses["vocal_style"], "seed": ses["seed"]},
+        "brief": brief,
+        "credits": kalan,
+    })
+
+
+@app.route("/api/generate-poll", methods=["POST"])
+def generate_poll():
+    data = request.get_json(silent=True, force=True) or {}
+    task_id = (data.get("task_id") or "").strip()
+    if not task_id:
+        return jsonify({"error": "task_id eksik"}), 400
+    
+    res = acestep_uret_sorgula(task_id)
+    if res.get("status") == "completed":
+        return jsonify({"status": "completed", "audio_url": f"/audio/{res['dosya']}"})
+    elif res.get("status") == "failed":
+        return jsonify({"status": "failed", "error": res.get("error", "Üretim başarısız")})
+    
+    return jsonify({"status": "processing"})
 
 
 @app.route("/api/generate", methods=["POST"])
