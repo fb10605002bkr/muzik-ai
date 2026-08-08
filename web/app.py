@@ -157,14 +157,36 @@ CHAT_SYSTEM = (
 )
 
 
-TUNNEL_HEADERS = {
-    "Content-Type": "application/json",
-    "Bypass-Tunnel-Reminder": "true",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-}
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+
+
+def gemini_chat(messages, system=None, timeout=30):
+    """Google Gemini API ile bulutta sohbet (Ollama gerektirmez)."""
+    key = GEMINI_API_KEY
+    if not key:
+        raise ValueError("GEMINI_API_KEY bulunamadı")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
+    contents = []
+    for m in messages:
+        role = "user" if m.get("role") == "user" else "model"
+        contents.append({"role": role, "parts": [{"text": m.get("content", "")}]})
+    payload = {"contents": contents}
+    if system:
+        payload["system_instruction"] = {"parts": [{"text": system}]}
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        res = json.loads(r.read().decode("utf-8"))
+        return res["candidates"][0]["content"]["parts"][0]["text"].strip()
 
 
 def ollama_chat(messages, system=None, model=None, timeout=240, keep_alive="5m", num_predict=400):
+    if GEMINI_API_KEY:
+        try:
+            return gemini_chat(messages, system=system)
+        except Exception as e:
+            print(f"Gemini API hatası, Ollama deneniyor: {e}")
+
     msgs = ([{"role": "system", "content": system}] if system else []) + messages
     payload = json.dumps({
         "model": model or GEN_MODEL, "messages": msgs, "stream": False, "keep_alive": keep_alive,
