@@ -1,20 +1,14 @@
 {
   "version": 2,
   "functions": {
-    "web/app.py": {
+    "app.py": {
       "maxDuration": 60
     }
   },
-  "builds": [
-    {
-      "src": "web/app.py",
-      "use": "@vercel/python"
-    }
-  ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "web/app.py"
+      "dest": "app.py"
     }
   ]
 }
