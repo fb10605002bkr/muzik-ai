@@ -149,6 +149,10 @@
     <div class="nav-in">
       <div class="brand"><span class="logo">🎵</span> Müzik <span class="accent">AI</span></div>
       <div class="nav-right">
+        <select id="qualitySelect" class="pill" title="Üretim Kalite Modu" style="background:var(--surface-2);color:var(--fg);border:1px solid var(--border);padding:4px 10px;cursor:pointer;font-size:0.8rem;border-radius:20px;outline:none;">
+          <option value="base" selected>🎼 Stüdyo Kalite (Base - 40 Adım)</option>
+          <option value="turbo">⚡ Hızlı (Turbo - 8 Adım)</option>
+        </select>
         <span class="pill" id="voiceBadge">🎤 Ses yükleniyor…</span>
         <span class="pill" id="creditBadge" style="display:none">💎 …</span>
         <button class="btn btn-ghost" id="buyBtn" style="display:none; height:36px; padding:0 13px; font-size:.8rem">Kredi Al</button>
@@ -346,7 +350,8 @@ async function generate() {
   const status = addMsg("system", "🎵 Şarkı görevi başlatılıyor…");
   status.classList.add("dots");
   try {
-    const r = await fetch("/api/generate-start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brief, user_id: userId }) });
+    const qMode = document.getElementById("qualitySelect") ? document.getElementById("qualitySelect").value : "base";
+    const r = await fetch("/api/generate-start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brief, user_id: userId, quality_mode: qMode }) });
     const data = await r.json();
     if (data.need_credits) { status.classList.remove("dots"); status.textContent = "💎 Yetersiz kredi! Üstteki 'Kredi Al' ile kredi ekle."; updateCredits(data.credits); genBtn.disabled = false; sendBtn.disabled = false; return; }
     if (data.error) { status.classList.remove("dots"); status.textContent = "⚠️ " + data.error; genBtn.disabled = false; sendBtn.disabled = false; return; }
@@ -404,14 +409,43 @@ function renderTrack(data) {
       '<div class="track-info"><div class="track-title">' + (data.instrumental ? "Enstrümantal Parça" : "Şarkın Hazır") + '</div>' +
         '<div class="tags">' + tags.join("") + '</div>' +
         '<audio controls src="' + data.audio_url + '"></audio></div></div>' +
-    '<div class="track-actions">' +
+    '<div class="track-actions" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">' +
       '<a class="listen-link" href="' + data.audio_url + '" target="_blank">🎧 Dinle / İndir</a>' +
       '<button class="btn btn-ghost coverBtn">🖼️ Kapak Görseli Üret</button>' +
+      '<div class="rating-box" style="display:inline-flex;align-items:center;gap:3px;margin-left:auto;background:var(--surface-2);padding:4px 10px;border-radius:12px;border:1px solid var(--border);">' +
+        '<span style="font-size:11px;color:var(--muted);font-weight:600;margin-right:4px;">⭐ Puan Ver:</span>' +
+        [1,2,3,4,5,6,7,8,9,10].map(n => `<button class="rate-btn" data-score="${n}" title="${n}/10 Puan" style="background:transparent;border:none;color:var(--fg);padding:2px 5px;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px;transition:all 0.2s;">${n}</button>`).join("") +
+      '</div>' +
       (data.instrumental ? "" : '<button class="btn btn-ghost lyrics-toggle">📝 Sözler</button>') + '</div>' +
     (data.instrumental ? "" : '<div class="lyrics"><pre></pre></div>');
   // Sözleri GÜVENLİ ekle: textContent (HTML enjeksiyonu/parse hatası olmaz)
   if (!data.instrumental) { const pre = track.querySelector(".lyrics pre"); if (pre) pre.textContent = data.lyrics || ""; }
   chat.appendChild(track);
+
+  // 1-10 Puanlama Olayları (Akıllı Öğrenme)
+  const trackId = data.task_id || data.audio_url.split("/").pop().replace(".wav", "");
+  track.querySelectorAll(".rate-btn").forEach(btn => {
+    btn.onclick = async () => {
+      const score = btn.getAttribute("data-score");
+      track.querySelectorAll(".rate-btn").forEach(b => {
+        b.style.background = "transparent";
+        b.style.color = "var(--fg)";
+      });
+      btn.style.background = "var(--accent-text)";
+      btn.style.color = "#fff";
+      try {
+        const r = await fetch("/api/rate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: userId, track_id: trackId, rating: parseInt(score), caption: data.caption })
+        });
+        const rData = await r.json();
+        if (rData.ok) {
+          addMsg("system", `⭐ Şarkıya ${score}/10 puan verdin! AI bu tercihinizi kaydetti. Sonraki şarkılarda ses akustiği ve stüdyo netliği bu puanına göre özelleştirilecek (CFG Güç Ölçeği: ${rData.preferred_cfg.toFixed(1)}).`);
+        }
+      } catch (err) { console.log("Rate err:", err); }
+    };
+  });
   // Garantili görünürlük: yerleşim tamamlanınca track'i görüş alanına kaydır + kısa vurgu
   requestAnimationFrame(() => {
     track.scrollIntoView({ behavior: "smooth", block: "center" });

@@ -93,21 +93,33 @@ def _users_kaydet(u):
 
 
 def _kullanici_hazirla(users, user_id):
-    """users dict'inde user_id kaydını garanti et (ses + kredi). Değişiklik olduysa True."""
+    """users dict'inde user_id kaydını garanti et (ses, kredi, kalite modu, puanlar)."""
     degisti = False
     if user_id not in users:
         users[user_id] = {
             "seed": random.randint(1, 2**31 - 1),
             "vocal_style": random.choice(VOICE_STYLES),
-            "voice_id": None,          # kullanıcı henüz ses SEÇMEDİ (null); seçince dolar
+            "voice_id": None,
             "credits": BASLANGIC_KREDI,
+            "quality_mode": "base",       # "turbo" veya "base" (stüdyo kalite)
+            "preferred_cfg": 7.5,         # kullanıcının puanlarına göre adapte olan CFG ölçeği
+            "ratings": {},                # {"track_id": {"rating": 9, "caption": "..."}}
         }
         degisti = True
-    if "credits" not in users[user_id]:   # eski kayıtlar için geriye dönük
+    if "credits" not in users[user_id]:
         users[user_id]["credits"] = BASLANGIC_KREDI
         degisti = True
     if "voice_id" not in users[user_id]:
         users[user_id]["voice_id"] = None
+        degisti = True
+    if "quality_mode" not in users[user_id]:
+        users[user_id]["quality_mode"] = "base"
+        degisti = True
+    if "preferred_cfg" not in users[user_id]:
+        users[user_id]["preferred_cfg"] = 7.5
+        degisti = True
+    if "ratings" not in users[user_id]:
+        users[user_id]["ratings"] = {}
         degisti = True
     return degisti
 
@@ -284,16 +296,30 @@ def acestep_base_yukle():
     _base_hazir = True
 
 
-def acestep_uret_baslat(caption, lyrics, duration, enstrumantal, seed=None):
+def acestep_uret_baslat(caption, lyrics, duration, enstrumantal, seed=None, quality_mode="base", preferred_cfg=7.5):
     """Sıcak servise üretim işi gönderir ve derhal task_id döndürür (1 saniyenin altında)."""
     os.makedirs(API_AUDIO_DIR, exist_ok=True)
+    
+    # Kullanıcının mod seçimi ve puan geçmişine göre dinamik parametreler
+    if quality_mode == "turbo":
+        model_name = "acestep-v15-turbo"
+        steps = 8
+        cfg = 1.0
+        enhanced_caption = caption
+    else:  # "base" (Stüdyo Kalite Modu)
+        model_name = "acestep-v15-base"
+        steps = 40
+        cfg = float(preferred_cfg) if preferred_cfg else 7.5
+        # Stüdyo akustiğini pekiştiren kaliteli etiketler ekle
+        enhanced_caption = f"{caption}, high fidelity studio recording, rich acoustics, 44.1kHz, master quality"
+
     payload = {
-        "caption": caption, "lyrics": lyrics,
+        "caption": enhanced_caption, "lyrics": lyrics,
         "duration": duration, "audio_duration": duration,
-        "inference_steps": INFERENCE_STEPS, "batch_size": 1,
+        "inference_steps": steps, "batch_size": 1,
         "instrumental": enstrumantal,
-        "guidance_scale": GUIDANCE_SCALE, "shift": 3.0,
-        "audio_format": "wav", "model": ACESTEP_MODEL,
+        "guidance_scale": cfg, "shift": 3.0,
+        "audio_format": "wav", "model": model_name,
         "vocal_language": "tr",
     }
     if seed is not None:
@@ -549,8 +575,12 @@ def generate_start():
     except Exception as e:
         return jsonify({"error": f"Söz üretimi hatası: {e}"}), 500
 
+    quality_mode = data.get("quality_mode") or ses.get("quality_mode", "base")
+    preferred_cfg = ses.get("preferred_cfg", 7.5)
+
     try:
-        task_id = acestep_uret_baslat(caption, lyrics, duration, enstrumantal, seed=seed)
+        task_id = acestep_uret_baslat(caption, lyrics, duration, enstrumantal, seed=seed,
+                                      quality_mode=quality_mode, preferred_cfg=preferred_cfg)
     except Exception as e:
         return jsonify({"error": f"Üretim servisi hatası: {e}"}), 500
 
@@ -568,6 +598,8 @@ def generate_start():
         "voice": None if enstrumantal else {"vocal_style": ses["vocal_style"], "seed": ses["seed"]},
         "brief": brief,
         "credits": kalan,
+        "quality_mode": quality_mode,
+        "preferred_cfg": preferred_cfg,
     })
 
 
@@ -585,6 +617,59 @@ def generate_poll():
         return jsonify({"status": "failed", "error": res.get("error", "Üretim başarısız")})
     
     return jsonify({"status": "processing"})
+
+
+@app.route("/api/rate", methods=["POST"])
+def rate_track():
+    """Kullanıcının ürettiği şarkıya 1-10 puan vermesini sağlar. Puanlar sonraki üretimi etkiler."""
+    data = request.get_json(silent=True, force=True) or {}
+    user_id = (data.get("user_id") or "anon").strip() or "anon"
+    track_id = (data.get("track_id") or "").strip()
+    try:
+        rating = int(data.get("rating") or 5)
+    except Exception:
+        rating = 5
+
+    if not (1 <= rating <= 10):
+        return jsonify({"error": "Puan 1 ile 10 arasında olmalı"}), 400
+
+    with _users_lock:
+        users = _users_yukle()
+        _kullanici_hazirla(users, user_id)
+        u = users[user_id]
+        
+        u["ratings"][track_id] = {
+            "rating": rating,
+            "time": time.time()
+        }
+        
+        if rating >= 8:
+            u["preferred_cfg"] = min(float(u.get("preferred_cfg", 7.5)) + 0.3, 9.0)
+        elif rating <= 4:
+            u["preferred_cfg"] = max(float(u.get("preferred_cfg", 7.5)) - 0.3, 6.0)
+            
+        _users_kaydet(users)
+        cfg_out = u["preferred_cfg"]
+
+    return jsonify({"ok": True, "rating": rating, "preferred_cfg": cfg_out})
+
+
+@app.route("/api/set-quality", methods=["POST"])
+def set_quality():
+    """Kullanıcının tercih ettiği üretim modunu (turbo / base) günceller."""
+    data = request.get_json(silent=True, force=True) or {}
+    user_id = (data.get("user_id") or "anon").strip() or "anon"
+    mode = (data.get("mode") or "base").strip().lower()
+    if mode not in ["turbo", "base"]:
+        mode = "base"
+
+    with _users_lock:
+        users = _users_yukle()
+        _kullanici_hazirla(users, user_id)
+        users[user_id]["quality_mode"] = mode
+        _users_kaydet(users)
+
+    return jsonify({"ok": True, "quality_mode": mode})
 
 
 @app.route("/api/generate", methods=["POST"])
