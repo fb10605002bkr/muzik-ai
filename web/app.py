@@ -26,9 +26,10 @@ app.jinja_env.auto_reload = True
 
 @app.after_request
 def _sayfa_onbellekleme(resp):
-    """HTML sayfası tarayıcıda önbelleğe alınmasın (tasarım değişikliği hemen görünsün)."""
-    if resp.mimetype == "text/html":
-        resp.headers["Cache-Control"] = "no-store, max-age=0"
+    """HTML ve statik dosyaların tarayıcıda önbelleğe alınmasını kesin olarak engelle."""
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
     return resp
 
 # ---- Ayarlar ----
