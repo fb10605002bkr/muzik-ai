@@ -537,13 +537,7 @@ def generate_start():
     try:
         if enstrumantal:
             lyrics = "[inst]"
-            try:
-                caption = ollama_chat([{"role": "user", "content":
-                    f"Şu şarkı isteği için İngilizce müzik tarz etiketleri yaz (virgülle ayrılmış, "
-                    f"kısa, örn: turkish pop, calm, piano). Şarkı instrumental, no vocals. "
-                    f"SADECE etiketleri ver.\n\nİstek: {brief}"}])
-            except Exception:
-                caption = "turkish traditional, acoustic saz, emotional instrumental, calm"
+            caption = "turkish traditional, acoustic saz, emotional instrumental, calm"
             seed = None
         else:
             lyrics = ollama_chat([{"role": "user", "content":
