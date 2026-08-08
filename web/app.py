@@ -243,7 +243,7 @@ def _vram_used_mib():
 
 
 def ollama_yer_ac():
-    if GEMINI_API_KEY or IS_REMOTE_ACESTEP():
+    if os.environ.get("GEMINI_API_KEY") or IS_REMOTE_ACESTEP():
         return
     ollama_bosalt()
     time.sleep(1)
