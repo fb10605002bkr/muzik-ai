@@ -404,13 +404,14 @@ function renderTrack(data) {
   if (sure) tags.push('<span class="tag">⏱ ' + sure + '</span>');
   if (data.instrumental) tags.push('<span class="tag">🎹 Enstrümantal</span>');
   if (sesLabel) tags.push('<span class="tag accent">🎤 ' + sesLabel + '</span>');
+  tags.push('<span class="tag" style="background:rgba(255,215,0,0.15);color:#ffd700;border:1px solid rgba(255,215,0,0.3);">🎛️ 24-bit Studio Master</span>');
   track.innerHTML =
     '<div class="track-top"><div class="cover"><span class="ph">🎵</span></div>' +
       '<div class="track-info"><div class="track-title">' + (data.instrumental ? "Enstrümantal Parça" : "Şarkın Hazır") + '</div>' +
         '<div class="tags">' + tags.join("") + '</div>' +
         '<audio controls src="' + data.audio_url + '"></audio></div></div>' +
     '<div class="track-actions" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">' +
-      '<a class="listen-link" href="' + data.audio_url + '" target="_blank">🎧 Dinle / İndir</a>' +
+      '<a class="listen-link" href="' + data.audio_url + '" download target="_blank">🎧 Stüdyo WAV İndir</a>' +
       '<button class="btn btn-ghost coverBtn">🖼️ Kapak Görseli Üret</button>' +
       '<div class="rating-box" style="display:inline-flex;align-items:center;gap:3px;margin-left:auto;background:var(--surface-2);padding:4px 10px;border-radius:12px;border:1px solid var(--border);">' +
         '<span style="font-size:11px;color:var(--muted);font-weight:600;margin-right:4px;">⭐ Puan Ver:</span>' +

@@ -310,15 +310,15 @@ def acestep_uret_baslat(caption, lyrics, duration, enstrumantal, seed=None, qual
         model_name = "acestep-v15-xl-sft"
         steps = 60
         cfg = float(preferred_cfg) if preferred_cfg else 7.5
-        # Stüdyo akustiğini pekiştiren kaliteli etiketler ekle
-        enhanced_caption = f"{caption}, high fidelity studio recording, rich acoustics, 44.1kHz, master quality"
+        # Stüdyo akustiğini ve armonik zenginliği pekiştiren kaliteli etiketler ekle
+        enhanced_caption = f"{caption}, high fidelity 48kHz 24-bit studio recording, rich harmonic resonance, pristine acoustic clarity, warm room ambience, master quality audio"
 
     payload = {
         "caption": enhanced_caption, "lyrics": lyrics,
         "duration": duration, "audio_duration": duration,
         "inference_steps": steps, "batch_size": 1,
         "instrumental": enstrumantal,
-        "guidance_scale": cfg, "shift": 3.0,
+        "guidance_scale": cfg, "shift": 3.5,
         "audio_format": "wav", "model": model_name,
         "vocal_language": "tr",
     }
