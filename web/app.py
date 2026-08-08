@@ -230,17 +230,14 @@ def _vram_used_mib():
 
 
 def ollama_yer_ac():
-    """
-    Base model sıcak servis GPU'da duruyor. Üretim VRAM'i ~6 GB'a çıkarır;
-    Ollama'nın 2.2 GB'ı da açık kalırsa 8 GB taşar. Bu yüzden üretimden önce
-    SADECE Ollama'yı bellekten atarız (base model warm kalır).
-    """
+    if GEMINI_API_KEY or IS_REMOTE_ACESTEP():
+        return
     ollama_bosalt()
-    time.sleep(2)
-    # Artık kalmış Ollama runner'ı VRAM tutuyorsa temizle (hayalet süreç önlemi)
+    time.sleep(1)
     try:
-        subprocess.run(["taskkill", "/F", "/IM", "llama-server.exe"],
-                       capture_output=True, timeout=15)
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/F", "/IM", "llama-server.exe"],
+                           capture_output=True, timeout=15)
     except Exception:
         pass
     time.sleep(1)
@@ -343,14 +340,21 @@ def _port_pid(port):
     return None
 
 
+def IS_REMOTE_ACESTEP():
+    return not ("127.0.0.1" in ACESTEP_API or "localhost" in ACESTEP_API)
+
+
 def acestep_servis_durdur():
     """ACE-Step sıcak servisini durdur (RAM'i boşalt → SDXL kapak için yer aç)."""
     global _base_hazir
     _base_hazir = False
+    if IS_REMOTE_ACESTEP():
+        return
     pid = _port_pid(8001)
     if pid:
         try:
-            subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=15)
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=15)
         except Exception:
             pass
     time.sleep(2)
@@ -358,24 +362,24 @@ def acestep_servis_durdur():
 
 def acestep_servis_baslat():
     """ACE-Step servisini arka planda (detached) başlat — sonraki şarkı için hazır olsun."""
+    if IS_REMOTE_ACESTEP():
+        return
     if _port_pid(8001):
         return  # zaten çalışıyor
     env = dict(os.environ, ACESTEP_INIT_LLM="false", ACESTEP_OFFLOAD_TO_CPU="true",
                ACESTEP_API_PORT="8001", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
-    # CREATE_NO_WINDOW → arka planda GİZLİ başlar (CMD penceresi açılmaz)
-    flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
-        subprocess.Popen([GORSEL_PY, "-m", "acestep.api_server", "--port", "8001"],
-                         cwd=ACESTEP_DIR, env=env, creationflags=flags,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         stdin=subprocess.DEVNULL)
+        kwargs = {"cwd": ACESTEP_DIR, "env": env, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL, "stdin": subprocess.DEVNULL}
+        if os.name == "nt":
+            kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        subprocess.Popen([GORSEL_PY, "-m", "acestep.api_server", "--port", "8001"], **kwargs)
     except Exception:
         pass
 
 
 def _acestep_ayakta():
     try:
-        _api_get("/health", timeout=3)
+        _api_get("/health", timeout=5)
         return True
     except Exception:
         return False
@@ -386,6 +390,8 @@ def acestep_servis_hazir_ol(timeout=120):
     global _base_hazir
     if _acestep_ayakta():
         return True
+    if IS_REMOTE_ACESTEP():
+        return False
     _base_hazir = False           # yeni servis → base yeniden yüklenecek
     acestep_servis_baslat()
     t0 = time.time()
