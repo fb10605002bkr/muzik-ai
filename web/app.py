@@ -192,10 +192,15 @@ def gemini_chat(messages, system=None, timeout=30):
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 res = json.loads(r.read().decode("utf-8"))
                 return res["candidates"][0]["content"]["parts"][0]["text"].strip()
+        except urllib.error.HTTPError as e:
+            last_err = e
+            if e.code == 429:
+                time.sleep(1.5)
+            continue
         except Exception as e:
             last_err = e
             continue
-    raise RuntimeError(f"Gemini API hatası (Google AI Studio Anahtarınızı kontrol edin): {last_err}")
+    raise RuntimeError(f"Gemini API hatası: {last_err}")
 
 
 def ollama_chat(messages, system=None, model=None, timeout=240, keep_alive="5m", num_predict=400):
