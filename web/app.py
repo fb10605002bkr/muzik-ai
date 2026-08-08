@@ -157,8 +157,6 @@ CHAT_SYSTEM = (
 )
 
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-
 TUNNEL_HEADERS = {
     "Content-Type": "application/json",
     "Bypass-Tunnel-Reminder": "true",
@@ -168,9 +166,9 @@ TUNNEL_HEADERS = {
 
 def gemini_chat(messages, system=None, timeout=30):
     """Google Gemini API ile bulutta sohbet (Ollama gerektirmez)."""
-    key = GEMINI_API_KEY
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not key:
-        raise ValueError("GEMINI_API_KEY bulunamadı")
+        raise ValueError("GEMINI_API_KEY Vercel Environment Variables kısmında tanımlı değil.")
     models_to_try = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest", "gemini-1.5-flash"]
     contents = []
     for m in messages:
@@ -196,11 +194,9 @@ def gemini_chat(messages, system=None, timeout=30):
 
 
 def ollama_chat(messages, system=None, model=None, timeout=240, keep_alive="5m", num_predict=400):
-    if GEMINI_API_KEY:
-        try:
-            return gemini_chat(messages, system=system)
-        except Exception as e:
-            print(f"Gemini API hatası, Ollama deneniyor: {e}")
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if key:
+        return gemini_chat(messages, system=system)
 
     msgs = ([{"role": "system", "content": system}] if system else []) + messages
     payload = json.dumps({
