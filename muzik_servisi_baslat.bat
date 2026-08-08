@@ -7,7 +7,7 @@ echo =======================================================
 
 echo [1/2] ACE-Step Sıcak Servis Başlatılıyor (:8001)...
 cd /d C:\Users\FiratBakir\muzik-ai\ACE-Step-1.5
-set ACESTEP_INIT_LLM=false
+set ACESTEP_INIT_LLM=true
 set ACESTEP_OFFLOAD_TO_CPU=true
 set ACESTEP_API_PORT=8001
 set PYTHONUTF8=1
