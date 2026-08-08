@@ -206,13 +206,10 @@ def gemini_chat(messages, system=None, timeout=30):
 
 
 def ollama_chat(messages, system=None, model=None, timeout=240, keep_alive="5m", num_predict=400):
-    key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if key:
-        return gemini_chat(messages, system=system)
-
+    """Yerel Ollama sohbet modeli (gemma2:9b)."""
     msgs = ([{"role": "system", "content": system}] if system else []) + messages
     payload = json.dumps({
-        "model": model or GEN_MODEL, "messages": msgs, "stream": False, "keep_alive": keep_alive,
+        "model": model or CHAT_MODEL, "messages": msgs, "stream": False, "keep_alive": keep_alive,
         "options": {"num_predict": num_predict, "temperature": 0.7},
     }).encode("utf-8")
     req = urllib.request.Request(OLLAMA_URL, data=payload, headers=TUNNEL_HEADERS)
