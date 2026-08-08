@@ -185,21 +185,22 @@ def gemini_chat(messages, system=None, timeout=30):
     data = json.dumps(payload).encode("utf-8")
 
     last_err = None
-    for api_ver, model_name in models_to_try:
-        url = f"https://generativelanguage.googleapis.com/{api_ver}/models/{model_name}:generateContent?key={key}"
-        try:
-            req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=timeout) as r:
-                res = json.loads(r.read().decode("utf-8"))
-                return res["candidates"][0]["content"]["parts"][0]["text"].strip()
-        except urllib.error.HTTPError as e:
-            last_err = e
-            if e.code == 429:
-                time.sleep(1.5)
-            continue
-        except Exception as e:
-            last_err = e
-            continue
+    for attempt in range(2):
+        for api_ver, model_name in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/{api_ver}/models/{model_name}:generateContent?key={key}"
+            try:
+                req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req, timeout=timeout) as r:
+                    res = json.loads(r.read().decode("utf-8"))
+                    return res["candidates"][0]["content"]["parts"][0]["text"].strip()
+            except urllib.error.HTTPError as e:
+                last_err = e
+                if e.code == 429:
+                    time.sleep(2.0)
+                continue
+            except Exception as e:
+                last_err = e
+                continue
     raise RuntimeError(f"Gemini API hatası: {last_err}")
 
 
