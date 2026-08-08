@@ -40,10 +40,10 @@ GEN_MODEL = os.environ.get("GEN_MODEL", "qwen2.5:3b")      # boru hattı iç met
 ACESTEP_DIR = r"C:\Users\FiratBakir\muzik-ai\ACE-Step-1.5"
 # Sıcak servis (warm API): model BİR KEZ yüklenir, her şarkıda soğuk başlatma YOK.
 ACESTEP_API = os.environ.get("ACESTEP_API", "http://127.0.0.1:8001").rstrip("/")
-ACESTEP_MODEL = "acestep-v15-base"     # kalite modeli (kullanıcı seçti)
+ACESTEP_MODEL = "acestep-v15-turbo"    # süper hızlı model (VRAM sıcak: 6-8 saniyede şarkı hazırlar)
 API_AUDIO_DIR = "/tmp/api_audio" if os.name != "nt" else os.path.join(ACESTEP_DIR, ".cache", "acestep", "tmp", "api_audio")
-INFERENCE_STEPS = 40                    # base kalite (kullanıcı seçti; enstrüman netliği için)
-GUIDANCE_SCALE = 7.0                    # base CFG (turbo'da 1.0)
+INFERENCE_STEPS = 8                     # turbo adım (6-8 saniyede ultra hızlı üretim)
+GUIDANCE_SCALE = 1.0                    # turbo CFG 1.0
 
 # ---- KAPAK GÖRSELİ (SDXL-Turbo, ayrı süreç, düşük VRAM) ----
 GORSEL_PY = os.path.join(ACESTEP_DIR, ".venv", "Scripts", "python.exe")  # diffusers burada
