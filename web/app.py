@@ -166,10 +166,15 @@ TUNNEL_HEADERS = {
 
 def gemini_chat(messages, system=None, timeout=30):
     """Google Gemini API ile bulutta sohbet (Ollama gerektirmez)."""
-    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    key = os.environ.get("GEMINI_API_KEY", "").strip().strip('"').strip("'")
     if not key:
         raise ValueError("GEMINI_API_KEY Vercel Environment Variables kısmında tanımlı değil.")
-    models_to_try = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest", "gemini-1.5-flash"]
+    models_to_try = [
+        ("v1beta", "gemini-1.5-flash"),
+        ("v1beta", "gemini-1.5-pro"),
+        ("v1", "gemini-1.5-flash"),
+        ("v1beta", "gemini-2.0-flash-exp"),
+    ]
     contents = []
     for m in messages:
         role = "user" if m.get("role") == "user" else "model"
@@ -180,8 +185,8 @@ def gemini_chat(messages, system=None, timeout=30):
     data = json.dumps(payload).encode("utf-8")
 
     last_err = None
-    for model_name in models_to_try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
+    for api_ver, model_name in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/{api_ver}/models/{model_name}:generateContent?key={key}"
         try:
             req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -190,7 +195,7 @@ def gemini_chat(messages, system=None, timeout=30):
         except Exception as e:
             last_err = e
             continue
-    raise last_err
+    raise RuntimeError(f"Gemini API hatası (Google AI Studio Anahtarınızı kontrol edin): {last_err}")
 
 
 def ollama_chat(messages, system=None, model=None, timeout=240, keep_alive="5m", num_predict=400):
