@@ -306,9 +306,9 @@ def acestep_uret_baslat(caption, lyrics, duration, enstrumantal, seed=None, qual
         steps = 8
         cfg = 1.0
         enhanced_caption = caption
-    else:  # "base" (Stüdyo Kalite Modu - SFT Fine-Tuned Model)
-        model_name = "acestep-v15-sft"
-        steps = 40
+    else:  # "base" (Stüdyo Kalite Modu - 4B XL SFT Dev Model)
+        model_name = "acestep-v15-xl-sft"
+        steps = 60
         cfg = float(preferred_cfg) if preferred_cfg else 7.5
         # Stüdyo akustiğini pekiştiren kaliteli etiketler ekle
         enhanced_caption = f"{caption}, high fidelity studio recording, rich acoustics, 44.1kHz, master quality"
