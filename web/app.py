@@ -170,10 +170,10 @@ def gemini_chat(messages, system=None, timeout=30):
     if not key:
         raise ValueError("GEMINI_API_KEY Vercel Environment Variables kısmında tanımlı değil.")
     models_to_try = [
-        ("v1beta", "gemini-1.5-flash"),
-        ("v1beta", "gemini-1.5-pro"),
-        ("v1", "gemini-1.5-flash"),
-        ("v1beta", "gemini-2.0-flash-exp"),
+        ("v1beta", "gemini-flash-latest"),
+        ("v1beta", "gemini-2.0-flash"),
+        ("v1beta", "gemini-2.0-flash-lite"),
+        ("v1beta", "gemini-pro-latest"),
     ]
     contents = []
     for m in messages:
