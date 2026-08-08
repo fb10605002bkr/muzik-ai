@@ -159,6 +159,12 @@ CHAT_SYSTEM = (
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
+TUNNEL_HEADERS = {
+    "Content-Type": "application/json",
+    "Bypass-Tunnel-Reminder": "true",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+}
+
 
 def gemini_chat(messages, system=None, timeout=30):
     """Google Gemini API ile bulutta sohbet (Ollama gerektirmez)."""
