@@ -157,14 +157,20 @@ CHAT_SYSTEM = (
 )
 
 
+TUNNEL_HEADERS = {
+    "Content-Type": "application/json",
+    "Bypass-Tunnel-Reminder": "true",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+}
+
+
 def ollama_chat(messages, system=None, model=None, timeout=240, keep_alive="5m", num_predict=400):
     msgs = ([{"role": "system", "content": system}] if system else []) + messages
     payload = json.dumps({
         "model": model or GEN_MODEL, "messages": msgs, "stream": False, "keep_alive": keep_alive,
         "options": {"num_predict": num_predict, "temperature": 0.7},
     }).encode("utf-8")
-    req = urllib.request.Request(OLLAMA_URL, data=payload,
-                                 headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(OLLAMA_URL, data=payload, headers=TUNNEL_HEADERS)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))["message"]["content"].strip()
 
@@ -175,7 +181,7 @@ def ollama_bosalt(model=None):
         try:
             payload = json.dumps({"model": m, "keep_alive": 0}).encode("utf-8")
             req = urllib.request.Request(f"{OLLAMA_BASE_URL}/api/generate",
-                                         data=payload, headers={"Content-Type": "application/json"})
+                                         data=payload, headers=TUNNEL_HEADERS)
             urllib.request.urlopen(req, timeout=30).read()
         except Exception:
             pass
@@ -212,13 +218,14 @@ def ollama_yer_ac():
 # ---- Sıcak servis (ACE-Step warm API) istemcisi ----
 def _api_post(path, payload, timeout=1800):
     req = urllib.request.Request(ACESTEP_API + path, data=json.dumps(payload).encode("utf-8"),
-                                 headers={"Content-Type": "application/json"})
+                                 headers=TUNNEL_HEADERS)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
 
 
 def _api_get(path, timeout=10):
-    with urllib.request.urlopen(ACESTEP_API + path, timeout=timeout) as r:
+    req = urllib.request.Request(ACESTEP_API + path, headers={"Bypass-Tunnel-Reminder": "true", "User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
 
 
