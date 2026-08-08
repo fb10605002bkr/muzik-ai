@@ -461,16 +461,16 @@ def acestep_servis_hazir_ol(timeout=120):
     return False
 
 
-def _sure_ayikla(text, varsayilan=25.0, azami=120.0):
-    """Metinden şarkı süresini (saniye) çıkar: '2-3 dakika', '2 dk', '120 saniye'..."""
+def _sure_ayikla(text, varsayilan=60.0, azami=240.0):
+    """Metinden şarkı süresini (saniye) çıkar: '2-3 dakika', '2 dk', '120 saaniye', '120 saniye'..."""
     t = text.lower()
-    m = re.search(r"(\d+)\s*[-–]\s*(\d+)\s*(dakika|dak|dk|min)", t)
+    m = re.search(r"(\d+)\s*[-–]\s*(\d+)\s*(dakika|dakka|dak|dk|min)", t)
     if m:
         return min((int(m.group(1)) + int(m.group(2))) / 2 * 60, azami)
     m = re.search(r"(\d+)\s*(dakika|dakka|dak|dk|min)", t)
     if m:
         return min(int(m.group(1)) * 60, azami)
-    m = re.search(r"(\d+)\s*(saniye|sn|sec)", t)
+    m = re.search(r"(\d+)\s*(saniye|saaniye|sani|san|sn|sec)", t)
     if m:
         return min(float(m.group(1)), azami)
     return varsayilan
