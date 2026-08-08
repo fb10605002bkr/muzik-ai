@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Heavy AI Models, Caches & Environments
+ACE-Step-1.5/.venv/
+ACE-Step-1.5/.cache/
+ACE-Step-1.5/*.bin
+ACE-Step-1.5/*.safetensors
+ACE-Step-1.5/*.pt
+ACE-Step-1.5/*.ckpt
+
+# Output & Generated Data
+cikti/
+karsilastirma/
+web/covers/*
+!web/covers/.gitkeep
+web/previews/*
+!web/previews/.gitkeep
+web/users.json
+
+# IDE & OS Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log

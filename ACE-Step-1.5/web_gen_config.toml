@@ -1,0 +1,14 @@
+caption = "soundtrack, heavy rock, no vocals"
+lyrics = "[inst]"
+duration = 130.0
+inference_steps = 8
+batch_size = 1
+instrumental = true
+thinking = false
+use_cot_lyrics = false
+use_cot_caption = false
+use_cot_metas = false
+use_cot_language = false
+save_dir = "output"
+audio_format = "wav"
+offload_to_cpu = true

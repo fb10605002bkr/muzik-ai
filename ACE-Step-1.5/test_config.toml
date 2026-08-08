@@ -1,0 +1,26 @@
+caption = "turkish pop, calm, acoustic guitar, male vocal, warm, summer evening, relaxing"
+lyrics = """
+[verse]
+Yaz akşamı, deniz kenarında
+Sıcak havanın neşesi içimde
+Dalgaların sesiyle sakinleşiyorum
+Huzur içinde yürüyorum
+
+[chorus]
+Yaz akşamı, deniz kenarında
+Gökyüzü renklerle boyanıyor
+Her an huzur dolu bu gece
+Kalbim seninle atıyor
+"""
+duration = 45.0
+inference_steps = 8
+batch_size = 1
+instrumental = false
+thinking = false
+use_cot_lyrics = false
+use_cot_caption = false
+use_cot_metas = false
+use_cot_language = false
+save_dir = "output"
+audio_format = "wav"
+offload_to_cpu = true
