@@ -40,18 +40,18 @@ ACESTEP_DIR = r"C:\Users\FiratBakir\muzik-ai\ACE-Step-1.5"
 # Sıcak servis (warm API): model BİR KEZ yüklenir, her şarkıda soğuk başlatma YOK.
 ACESTEP_API = os.environ.get("ACESTEP_API", "http://127.0.0.1:8001").rstrip("/")
 ACESTEP_MODEL = "acestep-v15-base"     # kalite modeli (kullanıcı seçti)
-API_AUDIO_DIR = os.path.join(ACESTEP_DIR, ".cache", "acestep", "tmp", "api_audio")
+API_AUDIO_DIR = "/tmp/api_audio" if os.name != "nt" else os.path.join(ACESTEP_DIR, ".cache", "acestep", "tmp", "api_audio")
 INFERENCE_STEPS = 40                    # base kalite (kullanıcı seçti; enstrüman netliği için)
 GUIDANCE_SCALE = 7.0                    # base CFG (turbo'da 1.0)
 
 # ---- KAPAK GÖRSELİ (SDXL-Turbo, ayrı süreç, düşük VRAM) ----
 GORSEL_PY = os.path.join(ACESTEP_DIR, ".venv", "Scripts", "python.exe")  # diffusers burada
 GORSEL_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gorsel_uret.py")
-COVERS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "covers")
+COVERS_DIR = "/tmp/covers" if os.name != "nt" else os.path.join(os.path.dirname(os.path.abspath(__file__)), "covers")
 
 # ---- KULLANICIYA ÖZEL SES ----
 # Sabit seed + sabit vokal stili = hep aynı şarkıcı. Her kullanıcıya bir kez atanır.
-USERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.json")
+USERS_FILE = "/tmp/users.json" if os.name != "nt" else os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.json")
 _users_lock = threading.Lock()
 VOICE_STYLES = [
     "warm male vocal", "deep male vocal", "husky male vocal", "soft male vocal",
@@ -275,12 +275,10 @@ def acestep_base_yukle():
 
 def acestep_uret(caption, lyrics, duration, enstrumantal, seed=None, timeout=600):
     """
-    Sıcak servise üretim işi gönder, dosya-izleme ile sonucu bekle.
-    (query_result yerine yeni WAV dosyasını izliyoruz — daha güvenilir.)
-    seed verilirse SABİT ses (kullanıcıya özel); verilmezse rastgele.
+    Sıcak servise üretim işi gönderir, /query_result ile sorgular
+    ve üretilen ses dosyasını API üzerinden (tünel destekli) indirir.
     """
     os.makedirs(API_AUDIO_DIR, exist_ok=True)
-    onceki = set(f for f in os.listdir(API_AUDIO_DIR) if f.lower().endswith(".wav"))
     payload = {
         "caption": caption, "lyrics": lyrics,
         "duration": duration, "audio_duration": duration,
@@ -295,18 +293,50 @@ def acestep_uret(caption, lyrics, duration, enstrumantal, seed=None, timeout=600
         payload["seed"] = int(seed)
     else:
         payload["use_random_seed"] = True
-    _api_post("/release_task", payload, timeout=60)
+
+    try:
+        res = _api_post("/release_task", payload, timeout=60)
+    except Exception as e:
+        print("release_task hatasi:", e)
+        return None
+
+    task_id = None
+    if isinstance(res, dict) and "data" in res:
+        d = res["data"]
+        if isinstance(d, dict):
+            task_id = d.get("task_id")
+        elif isinstance(d, str):
+            task_id = d
+
+    if not task_id:
+        print("Task ID elde edilemedi:", res)
+        return None
+
     t0 = time.time()
     while time.time() - t0 < timeout:
-        yeni = [f for f in os.listdir(API_AUDIO_DIR)
-                if f.lower().endswith(".wav") and f not in onceki]
-        if yeni:
-            yol = os.path.join(API_AUDIO_DIR, yeni[0])
-            boyut = os.path.getsize(yol)
-            time.sleep(1.5)
-            if boyut > 0 and os.path.getsize(yol) == boyut:  # yazımı bitti
-                return yeni[0]
-        time.sleep(2)
+        time.sleep(3)
+        try:
+            q_res = _api_post("/query_result", {"task_id_list": [task_id]}, timeout=15)
+            if q_res and isinstance(q_res, dict) and "data" in q_res and isinstance(q_res["data"], list) and len(q_res["data"]) > 0:
+                titem = q_res["data"][0]
+                status = titem.get("status")
+                if status == 1:
+                    raw_res = titem.get("result")
+                    res_list = json.loads(raw_res) if isinstance(raw_res, str) else raw_res
+                    if res_list and len(res_list) > 0:
+                        file_path = res_list[0].get("file", "")
+                        fname = f"{uuid.uuid4().hex}.wav"
+                        out_path = os.path.join(API_AUDIO_DIR, fname)
+                        dl_url = ACESTEP_API + file_path if file_path.startswith("/") else file_path
+                        req = urllib.request.Request(dl_url, headers={"Bypass-Tunnel-Reminder": "true", "User-Agent": "Mozilla/5.0"})
+                        with urllib.request.urlopen(req, timeout=60) as r, open(out_path, "wb") as f:
+                            f.write(r.read())
+                        return fname
+                elif status == 2:
+                    return None
+        except Exception as e:
+            print("query_result poll hatasi:", e)
+
     return None
 
 
@@ -440,7 +470,8 @@ def index():
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
-    messages = request.json.get("messages", [])
+    data = request.get_json(silent=True, force=True) or {}
+    messages = data.get("messages", [])
     try:
         reply = ollama_chat(messages, CHAT_SYSTEM, model=CHAT_MODEL)
     except Exception as e:
@@ -450,7 +481,7 @@ def chat():
 
 @app.route("/api/generate", methods=["POST"])
 def generate():
-    data = request.json or {}
+    data = request.get_json(silent=True, force=True) or {}
     brief = (data.get("brief") or "").strip()
     if not brief:
         return jsonify({"error": "Şarkı tarifi boş"}), 400
