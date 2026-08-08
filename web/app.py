@@ -165,7 +165,7 @@ def gemini_chat(messages, system=None, timeout=30):
     key = GEMINI_API_KEY
     if not key:
         raise ValueError("GEMINI_API_KEY bulunamadı")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
+    models_to_try = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest", "gemini-1.5-flash"]
     contents = []
     for m in messages:
         role = "user" if m.get("role") == "user" else "model"
@@ -174,10 +174,19 @@ def gemini_chat(messages, system=None, timeout=30):
     if system:
         payload["system_instruction"] = {"parts": [{"text": system}]}
     data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        res = json.loads(r.read().decode("utf-8"))
-        return res["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+    last_err = None
+    for model_name in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
+        try:
+            req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                res = json.loads(r.read().decode("utf-8"))
+                return res["candidates"][0]["content"]["parts"][0]["text"].strip()
+        except Exception as e:
+            last_err = e
+            continue
+    raise last_err
 
 
 def ollama_chat(messages, system=None, model=None, timeout=240, keep_alive="5m", num_predict=400):
