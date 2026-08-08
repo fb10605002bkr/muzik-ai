@@ -39,7 +39,7 @@ CHAT_MODEL = os.environ.get("CHAT_MODEL", "gemma2:9b")      # sohbet — kullan�
 GEN_MODEL = os.environ.get("GEN_MODEL", "qwen2.5:3b")      # boru hattı iç metin (söz/tarz/görsel tarifi) — hızlı
 ACESTEP_DIR = r"C:\Users\FiratBakir\muzik-ai\ACE-Step-1.5"
 # Sıcak servis (warm API): model BİR KEZ yüklenir, her şarkıda soğuk başlatma YOK.
-ACESTEP_API = os.environ.get("ACESTEP_API", "http://127.0.0.1:8001").rstrip("/")
+ACESTEP_API = os.environ.get("ACESTEP_API", "https://www-replacement-radio-reduced.trycloudflare.com" if os.name != "nt" else "http://127.0.0.1:8001").rstrip("/")
 ACESTEP_MODEL = "acestep-v15-turbo"    # süper hızlı model (VRAM sıcak: 6-8 saniyede şarkı hazırlar)
 API_AUDIO_DIR = "/tmp/api_audio" if os.name != "nt" else os.path.join(ACESTEP_DIR, ".cache", "acestep", "tmp", "api_audio")
 INFERENCE_STEPS = 8                     # turbo adım (6-8 saniyede ultra hızlı üretim)
